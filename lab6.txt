@@ -1,0 +1,55 @@
+set ns [new Simulator]
+
+set tf [open lab6.tr w]
+$ns trace-all $tf
+
+set n0 [$ns node]
+set n1 [$ns node]
+set n2 [$ns node]
+set n3 [$ns node]
+set n4 [$ns node]
+
+$ns duplex-link $n0 $n1 3Mb 50ms DropTail
+$ns duplex-link $n1 $n2 40Kb 200ms RED
+$ns duplex-link $n2 $n3 40Kb 200ms RED
+$ns duplex-link $n3 $n4 3Mb 10ms DropTail
+
+$ns queue-limit $n2 $n1 20
+$ns queue-limit $n2 $n3 20
+
+$ns insert-delayer $n2 $n1 [new Delayer]
+$ns insert-delayer $n2 $n3 [new Delayer]
+
+Queue/RED set adaptive_ 1
+Queue/RED set thresh_ 30
+Queue/RED set maxthresh_ 0
+Agent/TCP set window_ 30
+
+set tcp [new Agent/TCP/Sack1]
+$ns attach-agent $n0 $tcp
+set sink [new Agent/TCPSink/Sack1]
+$ns attach-agent $n4 $sink
+$ns connect $tcp $sink
+
+set ftp [new Application/FTP]
+$ftp attach-agent $tcp
+
+proc stop {} {
+global n0 n1
+set wrap 100
+set sid [$n0 id]
+set did [$n1 id]
+set a "lab6.tr"
+set GETRC "/root/ns-allinone-2.35/ns-2.35/bin/getrc"
+set RAW2XG "/root/ns-allinone-2.35/ns-2.35/bin/raw2xg"
+exec $GETRC -s $sid -d $did -f 0 lab6.tr | \
+ $RAW2XG -s 0.01 -m $wrap -r > plot6.xgr
+exec $GETRC -s $did -d $sid -f 0 lab6.tr | \
+ $RAW2XG -a -s 0.01 -m $wrap >> plot6.xgr
+exec xgraph -x time -y packets plot6.xgr &
+exit 0
+}
+
+$ns at 0.8 "$ftp start"
+$ns at 100 "stop"
+$ns run
